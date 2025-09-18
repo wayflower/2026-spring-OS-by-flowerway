@@ -11,7 +11,7 @@
 	.string	"init: fork failed\n"
 	.align	3
 .LC2:
-	.string	"sh"
+	.string	"getpid"
 	.align	3
 .LC3:
 	.string	"init: exec sh failed\n"
@@ -59,6 +59,7 @@ main:
 	lla	a0,.LC4
 	j	.L8
 .L4:
+	call	shutdown@plt
 	ld	ra,8(sp)
 	ld	s0,0(sp)
 	li	a0,0
@@ -66,13 +67,17 @@ main:
 	jr	ra
 	.size	main, .-main
 	.globl	argv
+	.section	.rodata.str1.8
+	.align	3
+.LC5:
+	.string	"sh"
 	.section	.data.rel.local,"aw"
 	.align	3
 	.set	.LANCHOR0,. + 0
 	.type	argv, @object
 	.size	argv, 16
 argv:
-	.dword	.LC2
+	.dword	.LC5
 	.dword	0
 	.ident	"GCC: (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0"
 	.section	.note.GNU-stack,"",@progbits

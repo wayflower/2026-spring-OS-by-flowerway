@@ -29,7 +29,7 @@ main(void)
       exit(1);
     }
     if(pid == 0){
-      exec("sh", argv);
+      exec("getpid", argv);
       printf("init: exec sh failed\n");
       exit(1);
     }
@@ -49,5 +49,6 @@ main(void)
       }
     }
   }
+  shutdown();
   return 0;
 }
