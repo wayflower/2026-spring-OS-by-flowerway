@@ -29,5 +29,6 @@
 #define SYS_getcwd      25
 #define SYS_rename      26
 #define SYS_shutdown    54320
+#define SYS_dup2        54321
 
 #endif

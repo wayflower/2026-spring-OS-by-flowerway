@@ -34,6 +34,7 @@ int trace(int mask);
 int sysinfo(struct sysinfo *);
 int rename(char *old, char *new);
 void shutdown(void);
+int dup2(int oldfd, int newfd);
 
 // ulib.c
 int stat(const char*, struct stat*);

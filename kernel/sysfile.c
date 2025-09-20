@@ -72,6 +72,55 @@ sys_dup(void)
   return fd;
 }
 
+// 分配指定的文件描述符
+static int
+fdalloc2(struct file *f, int fd)
+{
+  struct proc *p = myproc();
+  
+  if(fd < 0 || fd >= NOFILE || p->ofile[fd])
+    return -1;
+  
+  p->ofile[fd] = f;
+  return 0;
+}
+
+uint64
+sys_dup2(void)
+{
+  struct file *f;
+  int oldfd, newfd;
+
+  // 获取参数：旧文件描述符和新的文件描述符
+  if(argint(0, &oldfd) < 0 || argint(1, &newfd) < 0)
+    return -1;
+  
+  // 验证文件描述符范围
+  if(oldfd < 0 || newfd < 0 || oldfd >= NOFILE || newfd >= NOFILE)
+    return -1;
+  
+  // 获取旧文件描述符对应的文件结构
+  if(argfd(0, &oldfd, &f) < 0)
+    return -1;
+  
+  // 如果新旧文件描述符相同，直接返回新fd
+  if(oldfd == newfd)
+    return newfd;
+  
+  // 如果新文件描述符已经被占用，先关闭它
+  if(myproc()->ofile[newfd]) {
+    fileclose(myproc()->ofile[newfd]);
+    myproc()->ofile[newfd] = 0;
+  }
+  
+  // 分配新的文件描述符（确保newfd可用）
+  if(fdalloc2(f, newfd) < 0)
+    return -1;
+  
+  filedup(f);
+  return newfd;
+}
+
 uint64
 sys_read(void)
 {
