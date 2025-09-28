@@ -5,6 +5,7 @@ mode := release
 K=kernel
 U=xv6-user
 T=target
+TEST=xv6-user/testcases
 
 OBJS =
 ifeq ($(platform), k210)
@@ -77,7 +78,7 @@ CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -g
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
-CFLAGS += -I.
+CFLAGS += -I. -Ikernel/include
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 ifeq ($(mode), debug) 
@@ -87,6 +88,31 @@ endif
 ifeq ($(platform), qemu)
 CFLAGS += -D QEMU
 endif
+
+USER_CFLAGS = 
+SCHEDULER_TYPE ?= RR
+TEST_PROGRAM ?= test_proc_rr
+
+ifeq ($(SCHEDULER_TYPE), RR)
+	TEST_PROGRAM = test_proc_rr
+	CFLAGS += -DSCHEDULER_RR
+	USER_CFLAGS += -DSCHEDULER_RR
+else ifeq ($(SCHEDULER_TYPE), PRIORITY)
+	TEST_PROGRAM = test_proc_priority
+	CFLAGS += -DSCHEDULER_PRIORITY
+	USER_CFLAGS += -DSCHEDULER_PRIORITY
+else ifeq ($(SCHEDULER_TYPE), MLFQ)
+	TEST_PROGRAM = test_proc_mlfq
+	CFLAGS += -DSCHEDULER_MLFQ
+	USER_CFLAGS += -DSCHEDULER_MLFQ
+else
+	$(error Unknown scheduler type: $(SCHEDULER_TYPE))
+endif
+
+TEST_PROGRAM := $(strip $(TEST_PROGRAM))
+
+CFLAGS += -DTEST_PROGRAM=\"$(TEST_PROGRAM)\"
+USER_CFLAGS += -DTEST_PROGRAM=\"$(TEST_PROGRAM)\"
 
 LDFLAGS = -z max-page-size=4096
 
@@ -212,6 +238,14 @@ UPROGS=\
 	# $U/_grind\
 	# $U/_zombie\
 
+TESTCASES=\
+	$(TEST)/_judger\
+	$(TEST)/_$(TEST_PROGRAM)\
+
+$(TEST)/%: $(TEST)/%.c $(ULIB)
+	$(CC) $(USER_CFLAGS) -o $@ $<
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
 userprogs: $(UPROGS)
 
 dst=/mnt
@@ -219,7 +253,7 @@ dst=/mnt
 # @ cp $U/_init $(dst)/init
 # @ cp $U/_sh $(dst)/sh
 # Make fs image
-fs: $(UPROGS)
+fs: $(UPROGS) $(TESTCASES)
 	@if [ ! -f "fs.img" ]; then \
 		echo "making fs image..."; \
 		dd if=/dev/zero of=fs.img bs=512k count=512; \
@@ -230,6 +264,8 @@ fs: $(UPROGS)
 	@for file in $$( ls $U/_* ); do \
 		 cp $$file $(dst)/$${file#$U/_};\
 		 cp $$file $(dst)/bin/$${file#$U/_}; done
+	@for file in $$( ls $(TEST)/_* ); do \
+		cp $$file $(dst)/$${file#$(TEST)/_}; done
 	@cp -r riscv64/* $(dst)
 	@ umount $(dst)
 
@@ -250,16 +286,22 @@ clean:
 	$K/kernel \
 	.gdbinit \
 	$U/usys.S \
-	$(UPROGS)
+	$(UPROGS) \
+	$(TEST)/*.d $(TEST)/*.o $(TEST)/*.asm $(TEST)/*.sym $(TEST)/_* \
+	$(TESTCASES) \
 
 all:
 	@make build
 
 dump: all
-	$(CC) -Os -ffreestanding -fno-common -nostdlib -mno-relax -I. -Ikernel -S $U/init.c -o $U/init.S
-	$(CC) -Os -s -fno-unroll-loops -fmerge-all-constants -ffreestanding -fno-common -nostdlib -mno-relax -I. -Ikernel -c $U/init.c -o $U/init.o
+	$(CC) $(USER_CFLAGS) -Os -ffreestanding -fno-common -nostdlib -mno-relax -I. -Ikernel -S $U/init.c -o $U/init.S
+	$(CC) $(USER_CFLAGS) -Os -s -fno-unroll-loops -fmerge-all-constants -ffreestanding -fno-common -nostdlib -mno-relax -I. -Ikernel -c $U/init.c -o $U/init.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_init $U/init.o $U/usys.o $U/printf.o
 	$(OBJCOPY) -S -O binary $U/_init oo
 	$(OBJDUMP) -S $U/_init > $U/init.asm
 	od -v -t x1 -An oo | sed -E 's/ (.{2})/0x\1,/g' > kernel/include/initcode.h
 	rm oo
+
+run_test: clean dump fs 
+	make clean
+	make run

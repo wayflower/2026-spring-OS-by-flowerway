@@ -15,3 +15,10 @@ kernel/*.o
 kernel/include/*.back.h
 kernel/include/*.example.h
 target/*
+xv6-user/testcases/*.d
+xv6-user/testcases/*.o
+xv6-user/testcases/*.sym
+xv6-user/testcases/*.asm
+xv6-user/testcases/_*
+.clangd
+compile_commands.json

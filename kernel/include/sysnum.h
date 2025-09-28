@@ -30,5 +30,8 @@
 #define SYS_rename      26
 #define SYS_shutdown    54320
 #define SYS_dup2        54321
+#define SYS_set_timeslice   54322
+#define SYS_set_priority    54323
+#define SYS_get_priority    54324
 
 #endif
