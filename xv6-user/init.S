@@ -11,10 +11,10 @@
 	.string	"Scheduler type: "
 	.align	3
 .LC2:
-	.string	"Round Robin"
+	.string	"Priority"
 	.align	3
 .LC3:
-	.string	"1"
+	.string	"2"
 	.align	3
 .LC4:
 	.string	"\n\n"
@@ -42,7 +42,7 @@ print_test_program:
 	.section	.rodata.str1.8
 	.align	3
 .LC5:
-	.string	"test_proc_rr"
+	.string	"test_proc_priority"
 	.align	3
 .LC6:
 	.string	"init: starting %s\n"

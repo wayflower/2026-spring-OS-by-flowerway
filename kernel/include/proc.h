@@ -74,6 +74,7 @@ struct proc
   struct dirent *cwd;          // Current directory
   char name[16];               // Process name (debugging)
   int tmask;                   // trace mask
+  int priority;                // process priority for priority scheduler
 };
 
 void reg_info(void);
