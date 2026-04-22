@@ -564,10 +564,22 @@ void scheduler(void)
     intr_on();
 
     int found = 0;
+    int highest_pri = 1000000;
+
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
-      if (p->state == RUNNABLE)
+      if (p->state == RUNNABLE && p->priority < highest_pri)
+      {
+        highest_pri = p->priority;
+      }
+      release(&p->lock);
+    }
+
+    for (p = proc; p < &proc[NPROC]; p++)
+    {
+      acquire(&p->lock);
+      if (p->state == RUNNABLE && p->priority == highest_pri)
       {
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
@@ -585,6 +597,11 @@ void scheduler(void)
         c->proc = 0;
 
         found = 1;
+      }
+      if (p->state == RUNNABLE)
+      {
+        found = 1; // 如果有一个RUNNABLE的进程，就不让cpu休息，虽然不能执行，但还要重新跑一次比较的循环
+                   // 除非系统真的没有进程了，这时就让CPU休息一下，等中断来唤醒它
       }
       release(&p->lock);
     }
