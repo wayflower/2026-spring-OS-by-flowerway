@@ -606,14 +606,19 @@ void scheduler(void)
 
     int found = 0;
     int highest_pri = 1000000;
-    // int base_pri = 1000000;
+    int base_pri = 1000000;
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
-      if (p->state == RUNNABLE && p->priority < highest_pri)
+      if (p->state == RUNNABLE && p->now_priority < highest_pri)
       {
-        highest_pri = p->priority;
+        highest_pri = p->now_priority;
+        base_pri = p->priority;
+      }
+      else if (p->state == RUNNABLE && p->now_priority == highest_pri && p->priority < base_pri)
+      {
+        base_pri = p->priority;
       }
       release(&p->lock);
     }
@@ -621,7 +626,7 @@ void scheduler(void)
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
-      if (p->state == RUNNABLE && p->priority == highest_pri)
+      if (p->state == RUNNABLE && p->now_priority == highest_pri && p->priority == base_pri)
       {
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
