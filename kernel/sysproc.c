@@ -175,3 +175,10 @@ sys_set_priority(void)
   p->priority = priority;
   return 0;
 }
+
+uint64
+sys_get_priority(void)
+{
+  struct proc *p = myproc();
+  return p->now_priority;
+}

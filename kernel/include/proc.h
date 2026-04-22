@@ -75,6 +75,9 @@ struct proc
   char name[16];               // Process name (debugging)
   int tmask;                   // trace mask
   int priority;                // process priority for priority scheduler
+  int now_priority;            // now priority for mlfq scheduler
+  int io_ticks;                // ticks doing I/O, for mlfq scheduler
+  int cpu_ticks;               // ticks doing CPU work, for mlfq scheduler
 };
 
 void reg_info(void);

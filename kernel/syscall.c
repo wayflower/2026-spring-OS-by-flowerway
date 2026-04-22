@@ -117,6 +117,7 @@ extern uint64 sys_rename(void);
 extern uint64 sys_shutdown(void);
 extern uint64 sys_dup2(void);
 extern uint64 sys_set_priority(void);
+extern uint64 sys_get_priority(void);
 
 static uint64 (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
@@ -148,6 +149,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_shutdown] sys_shutdown,
     [SYS_dup2] sys_dup2,
     [SYS_set_priority] sys_set_priority,
+    [SYS_get_priority] sys_get_priority,
 };
 
 static char *sysnames[] = {
@@ -180,6 +182,7 @@ static char *sysnames[] = {
     [SYS_shutdown] "shutdown",
     [SYS_dup2] "dup2",
     [SYS_set_priority] "set_priority",
+    [SYS_get_priority] "get_priority",
 };
 
 void syscall(void)
