@@ -243,24 +243,3 @@ uint64 sys_shutdown(void)
   sbi_shutdown();
   return 0;
 }
-
-uint64
-sys_set_timeslice(void)
-{
-  int timeslice;
-  struct proc *p = myproc();
-
-  if (argint(0, &timeslice) < 0)
-  {
-    return -1;
-  }
-
-  if (timeslice < 0)
-  {
-    return -1;
-  }
-
-  p->timeslice = timeslice;
-
-  return 0;
-}

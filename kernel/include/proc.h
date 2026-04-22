@@ -75,7 +75,7 @@ struct proc
   char name[16];               // Process name (debugging)
   int tmask;                   // trace mask
   int timeslice;
-  int test222;
+  int ticks;
 };
 
 void reg_info(void);
