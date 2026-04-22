@@ -48,6 +48,37 @@ void reg_info(void)
 }
 
 // initialize the proc table at boot time.
+
+void evaluate_priority(struct proc *p, int total_ticks)
+{
+  int cpu_percent = (p->cpu_ticks * 100) / total_ticks;
+
+  // 判定规则：
+  if (cpu_percent >= 70)
+  {
+    // CPU 动作占 70% 以上，典型的贪婪型 -> 降级
+    if (p->now_priority < 100)
+    {
+      p->now_priority++;
+    }
+  }
+  else if (cpu_percent <= 30)
+  {
+    // CPU 动作低于 30%（意味着 IO 占了 70% 以上），典型的交互型 -> 升级
+    if (p->now_priority > 1)
+    {
+      p->now_priority--;
+    }
+  }
+  else
+  {
+    // CPU 占比在 30% 到 70% 之间（混合型），不奖不罚，维持原状
+  }
+  // 结算后重置计数器，开始新一轮的考核周期
+  p->cpu_ticks = 0;
+  p->io_ticks = 0;
+}
+
 void procinit(void)
 {
   struct proc *p;
@@ -170,8 +201,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-  p->priority = 0;
-  p->now_priority = 0;
+  p->priority = 10; // set a default lowest priority or initial priority
   p->io_ticks = 0;
   p->cpu_ticks = 0;
 
@@ -203,7 +233,6 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->priority = 0;
-  p->now_priority = 0;
   p->io_ticks = 0;
   p->cpu_ticks = 0;
   p->state = UNUSED;
@@ -395,6 +424,10 @@ int fork(void)
 
   np->priority = p->priority; // set priority of the child same as parent
 
+  np->io_ticks = 0; // set io_ticks of the child to 0
+
+  np->cpu_ticks = 0; // set cpu_ticks of the child to 0
+
   np->state = RUNNABLE;
 
   release(&np->lock);
@@ -573,6 +606,7 @@ void scheduler(void)
 
     int found = 0;
     int highest_pri = 1000000;
+    // int base_pri = 1000000;
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
@@ -652,6 +686,12 @@ void yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+  p->cpu_ticks += 1;
+  int total_ticks = p->io_ticks + p->cpu_ticks;
+  if (total_ticks >= 30)
+  {
+    evaluate_priority(p, total_ticks);
+  }
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
@@ -699,6 +739,12 @@ void sleep(void *chan, struct spinlock *lk)
     release(lk);
   }
 
+  p->io_ticks += 1;
+  int total_ticks = p->io_ticks + p->cpu_ticks;
+  if (total_ticks >= 30)
+  {
+    evaluate_priority(p, total_ticks);
+  }
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;

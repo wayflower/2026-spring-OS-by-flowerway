@@ -173,6 +173,7 @@ sys_set_priority(void)
   }
   struct proc *p = myproc();
   p->priority = priority;
+  p->now_priority = priority; // set now_priority same as initial priority
   return 0;
 }
 
