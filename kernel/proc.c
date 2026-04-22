@@ -170,6 +170,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  p->priority = -1;
 
   return p;
 }
@@ -198,6 +199,7 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->priority = -1;
   p->state = UNUSED;
 }
 
