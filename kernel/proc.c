@@ -385,6 +385,9 @@ int fork(void)
 
   pid = np->pid;
 
+  np->timeslice = p->timeslice;
+  np->ticks = 0;
+
   np->state = RUNNABLE;
 
   release(&np->lock);
