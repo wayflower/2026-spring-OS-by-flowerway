@@ -107,7 +107,6 @@ void usertrap(void)
     {
       yield();
     }
-    yield();
   }
   usertrapret();
 }
