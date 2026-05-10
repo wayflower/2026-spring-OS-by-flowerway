@@ -2,7 +2,6 @@
 // kernel stacks, page-table pages,
 // and pipe buffers. Allocates whole 4096-byte pages.
 
-
 #include "include/types.h"
 #include "include/param.h"
 #include "include/memlayout.h"
@@ -16,54 +15,58 @@ void freerange(void *pa_start, void *pa_end);
 
 extern char kernel_end[]; // first address after kernel.
 
-struct run {
+struct run
+{
   struct run *next;
 };
 
-struct {
+struct
+{
   struct spinlock lock;
   struct run *freelist;
   uint64 npage;
 } kmem;
 
-void
-kinit()
+void kinit()
 {
   initlock(&kmem.lock, "kmem");
   kmem.freelist = 0;
   kmem.npage = 0;
-  freerange(kernel_end, (void*)PHYSTOP);
-  #ifdef DEBUG
-  printf("kernel_end: %p, phystop: %p\n", kernel_end, (void*)PHYSTOP);
+  freerange(kernel_end, (void *)PHYSTOP);
+#ifdef DEBUG
+  printf("kernel_end: %p, phystop: %p\n", kernel_end, (void *)PHYSTOP);
   printf("kinit\n");
-  #endif
+#endif
 }
 
-void
-freerange(void *pa_start, void *pa_end)
+uint64 total_pages = 0;
+
+void freerange(void *pa_start, void *pa_end)
 {
   char *p;
-  p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  p = (char *)PGROUNDUP((uint64)pa_start);
+  for (; p + PGSIZE <= (char *)pa_end; p += PGSIZE)
+  {
+    total_pages++;
     kfree(p);
+  }
 }
 
 // Free the page of physical memory pointed at by v,
 // which normally should have been returned by a
 // call to kalloc().  (The exception is when
 // initializing the allocator; see kinit above.)
-void
-kfree(void *pa)
+void kfree(void *pa)
 {
   struct run *r;
-  
-  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < kernel_end || (uint64)pa >= PHYSTOP)
+
+  if (((uint64)pa % PGSIZE) != 0 || (char *)pa < kernel_end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
-  r = (struct run*)pa;
+  r = (struct run *)pa;
 
   acquire(&kmem.lock);
   r->next = kmem.freelist;
@@ -82,19 +85,29 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r) {
+  if (r)
+  {
     kmem.freelist = r->next;
     kmem.npage--;
   }
   release(&kmem.lock);
 
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
-  return (void*)r;
+  if (r)
+    memset((char *)r, 5, PGSIZE); // fill with junk
+  return (void *)r;
 }
 
 uint64
 freemem_amount(void)
 {
   return kmem.npage << PGSHIFT;
+}
+
+uint64
+allocated_pages(void)
+{
+  acquire(&kmem.lock);
+  uint64 pages = total_pages - kmem.npage;
+  release(&kmem.lock);
+  return pages;
 }
