@@ -25,16 +25,14 @@ struct
   struct spinlock lock;
   struct run *freelist;
   uint64 npage;
+  int ref_cnt[PHYSTOP / PGSIZE];
 } kmem;
 
-int ref_cnt[PHYSTOP / PGSIZE];
 uint64 total_pages = 0;
-struct spinlock refr_lock;
 
 void kinit()
 {
   initlock(&kmem.lock, "kmem");
-  initlock(&refr_lock, "refr");
   kmem.freelist = 0;
   kmem.npage = 0;
   freerange(kernel_end, (void *)PHYSTOP);
@@ -50,10 +48,10 @@ void freerange(void *pa_start, void *pa_end)
   p = (char *)PGROUNDUP((uint64)pa_start);
   for (; p + PGSIZE <= (char *)pa_end; p += PGSIZE)
   {
-    acquire(&refr_lock);
-    ref_cnt[(uint64)p / PGSIZE] = 1;
+    acquire(&kmem.lock);
+    kmem.ref_cnt[(uint64)p / PGSIZE] = 1;
     total_pages++;
-    release(&refr_lock);
+    release(&kmem.lock);
     kfree(p);
   }
 }
@@ -68,13 +66,13 @@ void kfree(void *pa)
 
   if (((uint64)pa % PGSIZE) != 0 || (char *)pa < kernel_end || (uint64)pa >= PHYSTOP)
     panic("kfree");
-  acquire(&refr_lock);
-  if (--ref_cnt[(uint64)pa / PGSIZE] > 0)
+  acquire(&kmem.lock);
+  if (--kmem.ref_cnt[(uint64)pa / PGSIZE] > 0)
   {
-    release(&refr_lock);
+    release(&kmem.lock);
     return;
   }
-  release(&refr_lock);
+  release(&kmem.lock);
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -108,9 +106,9 @@ kalloc(void)
   if (r)
   {
     memset((char *)r, 5, PGSIZE); // fill with junk
-    acquire(&refr_lock);
-    ref_cnt[(uint64)r / PGSIZE] = 1;
-    release(&refr_lock);
+    acquire(&kmem.lock);
+    kmem.ref_cnt[(uint64)r / PGSIZE] = 1;
+    release(&kmem.lock);
   }
   return (void *)r;
 }
@@ -120,12 +118,6 @@ freemem_amount(void)
 {
   return kmem.npage << PGSHIFT;
 }
-void ref_add(uint64 pa)
-{
-  acquire(&refr_lock);
-  ref_cnt[pa / PGSIZE]++;
-  release(&refr_lock);
-}
 
 uint64
 allocated_pages(void)
@@ -134,4 +126,20 @@ allocated_pages(void)
   uint64 pages = total_pages - kmem.npage;
   release(&kmem.lock);
   return pages;
+}
+
+void kaddref(void *pa)
+{
+  acquire(&kmem.lock);
+  kmem.ref_cnt[(uint64)pa / PGSIZE]++;
+  release(&kmem.lock);
+}
+
+int kgetref(void *pa)
+{
+  int count;
+  acquire(&kmem.lock);
+  count = kmem.ref_cnt[(uint64)pa / PGSIZE];
+  release(&kmem.lock);
+  return count;
 }

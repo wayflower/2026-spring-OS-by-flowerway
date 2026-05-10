@@ -407,7 +407,7 @@ int uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
       goto err;
     }
     ki += PGSIZE;
-    ref_add(pa);
+    kaddref((void *)pa);
   }
   sfence_vma();
   return 0;
@@ -699,13 +699,9 @@ int cow_handler(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
   uint64 pa = PTE2PA(*pte);
   uint flags = PTE_FLAGS(*pte);
 
-  extern struct spinlock refr_lock;
-  extern int ref_cnt[];
-
-  acquire(&refr_lock);
-  if (ref_cnt[pa / PGSIZE] == 1)
+  uint64 ref_cnt = kgetref((void *)pa);
+  if (ref_cnt == 1)
   {
-    release(&refr_lock);
     flags = (flags & ~PTE_COW) | PTE_W;
     *pte = PA2PTE(pa) | flags;
 
@@ -717,7 +713,6 @@ int cow_handler(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
     sfence_vma();
     return 0;
   }
-  release(&refr_lock);
 
   char *mem = kalloc();
   if (mem == 0)
