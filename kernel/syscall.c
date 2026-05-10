@@ -121,6 +121,7 @@ extern uint64 sys_rename(void);
 extern uint64 sys_shutdown(void);
 extern uint64 sys_dup2(void);
 extern uint64 sys_getprocsz(void);
+extern uint64 sys_getpgcnt(void);
 
 static uint64 (*syscalls[])(void) = {
   [SYS_fork]        sys_fork,
@@ -152,6 +153,7 @@ static uint64 (*syscalls[])(void) = {
   [SYS_shutdown]    sys_shutdown,
   [SYS_dup2]        sys_dup2,
   [SYS_getprocsz]   sys_getprocsz,
+  [SYS_getpgcnt]      sys_getpgcnt,
 };
 
 static char *sysnames[] = {
@@ -184,6 +186,7 @@ static char *sysnames[] = {
   [SYS_shutdown]    "shutdown",
   [SYS_dup2]        "dup2",
   [SYS_getprocsz]   "getprocsz",
+  [SYS_getpgcnt]      "getpgcnt",
 };
 
 void

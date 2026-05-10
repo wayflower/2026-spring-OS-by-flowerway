@@ -3,9 +3,11 @@
 
 #include "types.h"
 
-void*           kalloc(void);
-void            kfree(void *);
-void            kinit(void);
-uint64          freemem_amount(void);
+void *kalloc(void);
+void kfree(void *);
+void kinit(void);
+uint64 freemem_amount(void);
+void ref_add(uint64 pa);
+uint64 allocated_pages(void);
 
 #endif
