@@ -83,7 +83,7 @@ void usertrap(void)
   }
   else if (r_scause() == 15)
   {
-    if (cow_handler(p->pagetable, p->kpagetable, r_stval()) != 0)
+    if (cow_handler(p, r_stval()) != 0)
     {
       p->killed = 1;
     }

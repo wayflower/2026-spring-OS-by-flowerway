@@ -393,7 +393,8 @@ int uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
 
     if (flags & PTE_W)
     {
-      flags = (flags | PTE_COW) & ~PTE_W;
+      flags &= ~PTE_W;  // remove write permission
+      flags |= PTE_COW; // set COW flag
       *pte = PA2PTE(pa) | flags;
     }
 
@@ -681,12 +682,12 @@ void vmprint(pagetable_t pagetable)
   }
   return;
 }
-int cow_handler(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
+int cow_handler(struct proc *p, uint64 va)
 {
-  if (va >= MAXUVA)
-    return -1;
   va = PGROUNDDOWN(va);
-  pte_t *pte = walk(pagetable, va, 0);
+  if (va >= p->sz)
+    return -1;
+  pte_t *pte = walk(p->pagetable, va, 0);
   if (pte == 0)
     return -1;
   if ((*pte & PTE_V) == 0)
@@ -705,7 +706,7 @@ int cow_handler(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
     flags = (flags & ~PTE_COW) | PTE_W;
     *pte = PA2PTE(pa) | flags;
 
-    pte_t *kpte = walk(kpagetable, va, 0);
+    pte_t *kpte = walk(p->kpagetable, va, 0);
     if (kpte)
     {
       *kpte = PA2PTE(pa) | (flags & ~PTE_U);
@@ -723,7 +724,7 @@ int cow_handler(pagetable_t pagetable, pagetable_t kpagetable, uint64 va)
   flags = (flags & ~PTE_COW) | PTE_W;
   *pte = PA2PTE(mem) | flags;
 
-  pte_t *kpte = walk(kpagetable, va, 0);
+  pte_t *kpte = walk(p->kpagetable, va, 0);
   if (kpte)
   {
     *kpte = PA2PTE(mem) | (flags & ~PTE_U);
