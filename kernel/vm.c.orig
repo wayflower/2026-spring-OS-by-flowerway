@@ -16,9 +16,6 @@ pagetable_t kernel_pagetable;
 
 extern char etext[];      // kernel.ld sets this to end of kernel code.
 extern char trampoline[]; // trampoline.S
-
-struct proc;                                // 前向声明，防止编译器不认识 struct proc
-int cow_handler(struct proc *p, uint64 va); // 给编译器打个招呼
 /*
  * create a direct-map page table for the kernel.
  */
@@ -395,9 +392,9 @@ int uvmcopy(pagetable_t old, pagetable_t new, pagetable_t knew, uint64 sz)
     flags = PTE_FLAGS(*pte);
     if (flags & PTE_W)
     {
-      flags &= ~PTE_W;           // remove write permission
-      flags |= PTE_COW;          // set COW flag
-      *pte = PA2PTE(pa) | flags; // update parent's PTE
+      flags &= ~PTE_W;  // remove write permission
+      flags |= PTE_COW; // set COW flag
+      *pte |= flags;    // update parent's PTE
     }
     if (mappages(new, i, PGSIZE, (uint64)pa, flags) != 0)
     {
@@ -437,27 +434,12 @@ void uvmclear(pagetable_t pagetable, uint64 va)
 int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
-  pte_t *pte;
 
   while (len > 0)
   {
     va0 = PGROUNDDOWN(dstva);
-    if (va0 >= MAXVA)
-      return -1;
-
-    // 【新增改动】：检查目标地址是不是 COW 页面
-    pte = walk(pagetable, va0, 0);
-    if (pte != 0 && (*pte & PTE_V) && (*pte & PTE_COW))
-    {
-      // 如果是，强行在内核态触发一次 COW 处理，分离物理页
-      if (cow_handler(myproc(), va0) < 0)
-      {
-        return -1;
-      }
-    }
-
     pa0 = walkaddr(pagetable, va0);
-    if (pa0 == 0)
+    if (pa0 == NULL)
       return -1;
     n = PGSIZE - (dstva - va0);
     if (n > len)

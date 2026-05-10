@@ -1,0 +1,11 @@
+--- kernel/vm.c
++++ kernel/vm.c
+@@ -395,7 +395,7 @@
+     if (flags & PTE_W)
+     {
+       flags &= ~PTE_W;  // remove write permission
+       flags |= PTE_COW; // set COW flag
+-      *pte |= flags;    // update parent's PTE
++      *pte = PA2PTE(pa) | flags; // update parent's PTE
+     }
+     if (mappages(new, i, PGSIZE, (uint64)pa, flags) != 0)

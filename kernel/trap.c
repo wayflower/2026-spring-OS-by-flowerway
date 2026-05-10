@@ -12,6 +12,12 @@
 #include "include/console.h"
 #include "include/timer.h"
 #include "include/disk.h"
+#include "include/vm.h"     // 提供 walk 等虚拟内存相关结构（如果 walk 不在里面，见下方提醒）
+#include "include/kalloc.h" // 提供 kalloc, kfree, kgetref
+#include "include/string.h" // 提供 memmove
+
+extern pte_t *walk(pagetable_t, uint64, int);
+extern int kgetref(void *pa);
 
 extern char trampoline[], uservec[], userret[];
 
@@ -30,30 +36,91 @@ int devintr();
 // }
 
 // set up to take exceptions and traps while in the kernel.
-void
-trapinithart(void)
+void trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
   w_sstatus(r_sstatus() | SSTATUS_SIE);
   // enable supervisor-mode timer interrupts.
   w_sie(r_sie() | SIE_SEIE | SIE_SSIE | SIE_STIE);
   set_next_timeout();
-  #ifdef DEBUG
+#ifdef DEBUG
   printf("trapinithart\n");
-  #endif
+#endif
 }
 
+// kernel/vm.c
+// 返回 0 表示处理成功，返回 -1 表示处理失败（需要 kill 进程）
+// 【新增函数】：处理 COW 引发的写缺页异常
+int cow_handler(struct proc *p, uint64 va)
+{
+  pte_t *pte, *kpte;
+  uint64 pa;
+  char *new_pa;
+  uint flags;
+
+  va = PGROUNDDOWN(va);
+  if (va >= p->sz)
+    return -1; // 越界
+
+  pte = walk(p->pagetable, va, 0);
+  if (pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0)
+    return -1;
+  if ((*pte & PTE_COW) == 0)
+    return -1; // 不是 COW 页面，属于真·非法越界写
+
+  pa = PTE2PA(*pte);
+
+  // 【核心优化】：如果当前物理页只有我一个进程在用，直接恢复写权限，免去拷贝
+  if (kgetref((void *)pa) == 1)
+  {
+    flags = PTE_FLAGS(*pte);
+    flags = (flags & ~PTE_COW) | PTE_W;
+    *pte = PA2PTE(pa) | flags; // 恢复用户页表
+
+    kpte = walk(p->kpagetable, va, 0);
+    if (kpte)
+      *kpte = PA2PTE(pa) | (flags & ~PTE_U); // 恢复内核页表
+    return 0;
+  }
+
+  // 不是独占，老老实实分配新页并拷贝
+  new_pa = kalloc();
+  if (new_pa == 0)
+    return -1;                         // OOM
+  memmove(new_pa, (char *)pa, PGSIZE); // 拷贝数据
+
+  // 计算新权限：撕下 COW，贴上 W
+  flags = PTE_FLAGS(*pte);
+  flags = (flags & ~PTE_COW) | PTE_W;
+
+  // 双重重新映射：不用 mappages，直接改底层的 PTE
+  *pte = PA2PTE((uint64)new_pa) | flags;
+
+  kpte = walk(p->kpagetable, va, 0);
+  if (kpte)
+  {
+    *kpte = PA2PTE((uint64)new_pa) | (flags & ~PTE_U);
+  }
+  else
+  {
+    panic("cow_handler: missing kpte");
+  }
+
+  // 释放旧的物理页（kfree 内部会把旧页的引用计数 -1）
+  kfree((void *)pa);
+
+  return 0;
+}
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
 //
-void
-usertrap(void)
+void usertrap(void)
 {
   // printf("run in usertrap\n");
   int which_dev = 0;
 
-  if((r_sstatus() & SSTATUS_SPP) != 0)
+  if ((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
 
   // send interrupts and exceptions to kerneltrap(),
@@ -61,13 +128,14 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
+
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
+
+  if (r_scause() == 8)
+  {
     // system call
-    if(p->killed)
+    if (p->killed)
       exit(-1);
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
@@ -76,22 +144,41 @@ usertrap(void)
     // so don't enable until done with those registers.
     intr_on();
     syscall();
-  } 
-  else if((which_dev = devintr()) != 0){
+  }
+  else if ((which_dev = devintr()) != 0)
+  {
     // ok
-  } 
-  else {
+  }
+  else if (r_scause() == 15)
+  { // 专门拦截写缺页异常
+    uint64 fault_va = r_stval();
+
+    // 地址合法性校验（防溢出、防越界）
+    if (fault_va >= p->sz || fault_va < PGROUNDDOWN(p->trapframe->sp))
+    {
+      p->killed = 1;
+    }
+    else
+    {
+      if (cow_handler(p, fault_va) < 0)
+      {
+        p->killed = 1;
+      }
+    }
+  }
+  else
+  {
     printf("\nusertrap(): unexpected scause %p pid=%d %s\n", r_scause(), p->pid, p->name);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     // trapframedump(p->trapframe);
     p->killed = 1;
   }
 
-  if(p->killed)
+  if (p->killed)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if (which_dev == 2)
     yield();
 
   usertrapret();
@@ -100,8 +187,7 @@ usertrap(void)
 //
 // return to user space
 //
-void
-usertrapret(void)
+void usertrapret(void)
 {
   struct proc *p = myproc();
 
@@ -118,11 +204,11 @@ usertrapret(void)
   p->trapframe->kernel_satp = r_satp();         // kernel page table
   p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
   p->trapframe->kernel_trap = (uint64)usertrap;
-  p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
+  p->trapframe->kernel_hartid = r_tp(); // hartid for cpuid()
 
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
-  
+
   // set S Previous Privilege mode to User.
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
@@ -136,40 +222,43 @@ usertrapret(void)
   // printf("[usertrapret]p->pagetable: %p\n", p->pagetable);
   uint64 satp = MAKE_SATP(p->pagetable);
 
-  // jump to trampoline.S at the top of memory, which 
+  // jump to trampoline.S at the top of memory, which
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);
-  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  ((void (*)(uint64, uint64))fn)(TRAPFRAME, satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,
 // on whatever the current kernel stack is.
-void 
-kerneltrap() {
+void kerneltrap()
+{
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
-  
-  if((sstatus & SSTATUS_SPP) == 0)
+
+  if ((sstatus & SSTATUS_SPP) == 0)
     panic("kerneltrap: not from supervisor mode");
-  if(intr_get() != 0)
+  if (intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
 
-  if((which_dev = devintr()) == 0){
+  if ((which_dev = devintr()) == 0)
+  {
     printf("\nscause %p\n", scause);
     printf("sepc=%p stval=%p hart=%d\n", r_sepc(), r_stval(), r_tp());
     struct proc *p = myproc();
-    if (p != 0) {
+    if (p != 0)
+    {
       printf("pid: %d, name: %s\n", p->pid, p->name);
     }
     panic("kerneltrap");
   }
   // printf("which_dev: %d\n", which_dev);
-  
+
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING) {
+  if (which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  {
     yield();
   }
   // the yield() may have caused some traps to occur,
@@ -178,53 +267,65 @@ kerneltrap() {
   w_sstatus(sstatus);
 }
 
-// Check if it's an external/software interrupt, 
-// and handle it. 
-// returns  2 if timer interrupt, 
-//          1 if other device, 
-//          0 if not recognized. 
-int devintr(void) {
-	uint64 scause = r_scause();
+// Check if it's an external/software interrupt,
+// and handle it.
+// returns  2 if timer interrupt,
+//          1 if other device,
+//          0 if not recognized.
+int devintr(void)
+{
+  uint64 scause = r_scause();
 
-	#ifdef QEMU 
-	// handle external interrupt 
-	if ((0x8000000000000000L & scause) && 9 == (scause & 0xff)) 
-	#else 
-	// on k210, supervisor software interrupt is used 
-	// in alternative to supervisor external interrupt, 
-	// which is not available on k210. 
-	if (0x8000000000000001L == scause && 9 == r_stval()) 
-	#endif 
-	{
-		int irq = plic_claim();
-		if (UART_IRQ == irq) {
-			// keyboard input 
-			int c = sbi_console_getchar();
-			if (-1 != c) {
-				consoleintr(c);
-			}
-		}
-		else if (DISK_IRQ == irq) {
-			disk_intr();
-		}
-		else if (irq) {
-			printf("unexpected interrupt irq = %d\n", irq);
-		}
+#ifdef QEMU
+  // handle external interrupt
+  if ((0x8000000000000000L & scause) && 9 == (scause & 0xff))
+#else
+  // on k210, supervisor software interrupt is used
+  // in alternative to supervisor external interrupt,
+  // which is not available on k210.
+  if (0x8000000000000001L == scause && 9 == r_stval())
+#endif
+  {
+    int irq = plic_claim();
+    if (UART_IRQ == irq)
+    {
+      // keyboard input
+      int c = sbi_console_getchar();
+      if (-1 != c)
+      {
+        consoleintr(c);
+      }
+    }
+    else if (DISK_IRQ == irq)
+    {
+      disk_intr();
+    }
+    else if (irq)
+    {
+      printf("unexpected interrupt irq = %d\n", irq);
+    }
 
-		if (irq) { plic_complete(irq);}
+    if (irq)
+    {
+      plic_complete(irq);
+    }
 
-		#ifndef QEMU 
-		w_sip(r_sip() & ~2);    // clear pending bit
-		sbi_set_mie();
-		#endif 
+#ifndef QEMU
+    w_sip(r_sip() & ~2); // clear pending bit
+    sbi_set_mie();
+#endif
 
-		return 1;
-	}
-	else if (0x8000000000000005L == scause) {
-		timer_tick();
-		return 2;
-	}
-	else { return 0;}
+    return 1;
+  }
+  else if (0x8000000000000005L == scause)
+  {
+    timer_tick();
+    return 2;
+  }
+  else
+  {
+    return 0;
+  }
 }
 
 void trapframedump(struct trapframe *tf)
