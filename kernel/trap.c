@@ -50,7 +50,7 @@ struct VMA_page *select_victim_page(struct VMA *head)
   struct VMA *v;
   struct VMA_page *victim = 0;
   int oldest_time = 0x7fffffff; // 初始为一个很大的数，确保任何页面的时间戳都比它小
-  int selected = -1;
+  // int selected = -1;
 
   // 遍历进程内部环形双向链表上挂载的所有 VMA 块
   for (v = head->vm_next; v != head; v = v->vm_next)
@@ -67,7 +67,7 @@ struct VMA_page *select_victim_page(struct VMA *head)
         {
           oldest_time = v->pages[i].last_access_time;
           victim = &v->pages[i];
-          selected = i;
+          // selected = i;
         }
       }
     }
