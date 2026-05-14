@@ -11,10 +11,10 @@
 	.string	"Target type: "
 	.align	3
 .LC2:
-	.string	"FIFO"
+	.string	"LRU"
 	.align	3
 .LC3:
-	.string	"1"
+	.string	"2"
 	.align	3
 .LC4:
 	.string	"\n\n"
@@ -42,7 +42,7 @@ print_test_program:
 	.section	.rodata.str1.8
 	.align	3
 .LC5:
-	.string	"test_vm_fifo"
+	.string	"test_vm_lru"
 	.align	3
 .LC6:
 	.string	"init: starting %s\n"

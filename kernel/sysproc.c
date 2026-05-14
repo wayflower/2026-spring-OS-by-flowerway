@@ -180,3 +180,23 @@ sys_get_swap_count()
 {
   return myproc()->page_swap_count;
 }
+
+uint64
+sys_lru_access_notify()
+{
+  uint64 va;
+  if (argaddr(0, &va) < 0)
+  {
+    return -1;
+  }
+  struct proc *p = myproc();
+  struct VMA_page *page = addr2page(&p->head, va);
+  if (page == 0)
+  {
+    return -1;
+  }
+  acquire(&tickslock);
+  page->last_access_time = ticks; // 更新页面的最后访问时间戳
+  release(&tickslock);
+  return 0;
+}

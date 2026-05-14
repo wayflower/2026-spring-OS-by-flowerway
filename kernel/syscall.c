@@ -120,6 +120,7 @@ extern uint64 sys_mmap(void);
 extern uint64 sys_munmap(void);
 extern uint64 sys_set_max_page_in_mem(void);
 extern uint64 sys_get_swap_count(void);
+extern uint64 sys_lru_access_notify(void);
 
 static uint64 (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
@@ -154,6 +155,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_munmap] sys_munmap,
     [SYS_set_max_page_in_mem] sys_set_max_page_in_mem,
     [SYS_get_swap_count] sys_get_swap_count,
+    [SYS_lru_access_notify] sys_lru_access_notify,
 };
 
 static char *sysnames[] = {
@@ -189,6 +191,7 @@ static char *sysnames[] = {
     [SYS_munmap] "munmap",
     [SYS_set_max_page_in_mem] "set_max_page_in_mem",
     [SYS_get_swap_count] "get_swap_count",
+    [SYS_lru_access_notify] "lru_access_notify",
 };
 
 void syscall(void)
