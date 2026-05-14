@@ -975,3 +975,16 @@ procnum(void)
 
   return num;
 }
+
+struct VMA_page *addr2page(struct VMA *head, uint64 addr)
+{
+  struct VMA *vma;
+  for (vma = head->vm_next; vma != head; vma = vma->vm_next)
+  {
+    if (addr >= vma->vm_start && addr < vma->vm_end)
+    {
+      return &vma->pages[(addr - vma->vm_start) / PGSIZE];
+    }
+  }
+  return 0;
+}

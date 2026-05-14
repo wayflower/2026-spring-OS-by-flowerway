@@ -174,3 +174,9 @@ sys_set_max_page_in_mem()
   myproc()->max_page_in_mem = n;
   return 0;
 }
+
+uint64
+sys_get_swap_count()
+{
+  return myproc()->page_swap_count;
+}

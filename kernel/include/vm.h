@@ -43,6 +43,10 @@ struct swap_slot
     uint64 vaddr;      // 该页面原本对应的虚拟地址
     char data[PGSIZE]; // 该页面数据的实际缓冲区
 };
+struct proc;
+struct VMA_page;
+int swap_in(struct proc *p, struct VMA_page *page);  // 将进程p的虚拟地址va对应的页面换出至全局交换区
+int swap_out(struct proc *p, struct VMA_page *page); // 将全局交换区里对应的页面换入进程p的虚拟地址va
 
 #define PROT_READ 0x1
 #define PROT_WRITE 0x2

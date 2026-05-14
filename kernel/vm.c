@@ -827,3 +827,68 @@ uint64 sys_munmap()
   }
   return 0;
 }
+
+int swap_out(struct proc *p, struct VMA_page *page)
+{
+  int idx = alloc_global_swap_slot(p->pid, page->vaddr);
+  if (idx < 0)
+  {
+    return -1;
+  }
+  // 找到该换出页的PTE，获取物理地址，复制到交换区
+  pte_t *pte = walk(p->pagetable, page->vaddr, 0);
+  if (pte == NULL || (*pte & PTE_V) == 0)
+  {
+    return -1;
+  }
+  uint64 pa = PTE2PA(*pte);
+  memmove(mock_swap.slot[idx].data, (char *)pa, PGSIZE);
+
+  // 解除映射，更新PTE和页表项状态
+  if (walk(p->kpagetable, page->vaddr, 0) != NULL)
+  {
+    vmunmap(p->kpagetable, page->vaddr, 1, 0); // 这一步时先不释放物理页，只是解映射内核页表
+  }
+  vmunmap(p->pagetable, page->vaddr, 1, 1); // 内部已经执行了 *pte = 0，使得 PTE_V = 0
+
+  page->status = 2;          // 标记为交换出
+  page->swap_slot_idx = idx; // 记录交换区slot索引
+
+  p->cur_page_in_mem--;
+  p->page_swap_count++;
+  return 0;
+}
+
+int swap_in(struct proc *p, struct VMA_page *page)
+{
+  if (page->swap_slot_idx < 0 || page->swap_slot_idx >= MAX_SWAP_SLOTS)
+  {
+    return -1;
+  }
+  // 从交换区复制回物理内存，更新PTE和页表项状态
+  char *mem = kalloc();
+  if (mem == NULL)
+  {
+    return -1;
+  }
+  memmove(mem, mock_swap.slot[page->swap_slot_idx].data, PGSIZE);
+  if (mappages(p->pagetable, page->vaddr, PGSIZE, (uint64)mem, PTE_W | PTE_R | PTE_U) != 0)
+  {
+    kfree(mem);
+    return -1;
+  }
+  if (mappages(p->kpagetable, page->vaddr, PGSIZE, (uint64)mem, PTE_W | PTE_R) != 0)
+  {
+    vmunmap(p->pagetable, page->vaddr, 1, 1);
+    kfree(mem);
+    return -1;
+  }
+
+  int idx = page->swap_slot_idx;
+  free_global_swap_slot(idx); // 释放交换区slot
+  page->status = 1;           // 标记为在内存中
+  page->swap_slot_idx = -1;   // 清除交换区slot索引
+
+  p->cur_page_in_mem++;
+  return 0;
+}

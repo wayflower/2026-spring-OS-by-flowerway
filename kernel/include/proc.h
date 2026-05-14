@@ -129,5 +129,6 @@ uint64 procnum(void);
 void test_proc_init(int);
 struct VMA *allocshare();
 void freeshare(struct VMA *vma);
+struct VMA_page *addr2page(struct VMA *head, uint64 vaddr);
 
 #endif
