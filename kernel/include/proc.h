@@ -16,7 +16,7 @@ struct VMA_page
   int status; // 0: not used, 1: in memory, 2: swapped out
   uint64 vaddr;
   int swap_slot_idx;       // 如果status为2，记录对应的全局交换区
-  uint64 in_mem_time;      // 该页面进入内存的时间戳，用于FIFO算法
+  uint64 last_in_mem_time; // 该页面进入内存的时间戳，用于FIFO算法
   uint64 last_access_time; // 该页面最后一次被访问的时间戳，用于LRU算法
 };
 

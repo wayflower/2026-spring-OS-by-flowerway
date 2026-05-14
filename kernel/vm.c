@@ -761,7 +761,7 @@ uint64 mymmap(int fd, uint64 addr, uint64 len, int prot, int flags, uint64 offse
     vma->pages[i].status = 0; // 初始状态为not used
     vma->pages[i].vaddr = vma->vm_start + i * PGSIZE;
     vma->pages[i].swap_slot_idx = -1; // 初始时没有对应的交换区slot
-    vma->pages[i].in_mem_time = 0;
+    vma->pages[i].last_in_mem_time = 0;
     vma->pages[i].last_access_time = 0;
   }
 

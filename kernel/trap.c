@@ -49,7 +49,8 @@ struct VMA_page *select_victim_page(struct VMA *head)
 {
   struct VMA *v;
   struct VMA_page *victim = 0;
-  int oldest_time = 0xFFFFFFFF; // 初始化为最大值
+  int oldest_time = 0x7FFFFFFF; // 初始化为最大值
+  int selected = -1;
 
   // 遍历进程内部环形双向链表上挂载的所有 VMA 块
   for (v = head->vm_next; v != head; v = v->vm_next)
@@ -62,16 +63,17 @@ struct VMA_page *select_victim_page(struct VMA *head)
       // 只有真正在内存中的页 (status == 1) 才能作为候选者
       if (v->pages[i].status == 1)
       {
-        if (v->pages[i].last_access_time < oldest_time)
+        if (v->pages[i].last_in_mem_time < oldest_time)
         {
-          oldest_time = v->pages[i].last_access_time;
+          oldest_time = v->pages[i].last_in_mem_time;
           victim = &v->pages[i]; // 更新当前最老的页面指针
+          selected = i;
           // printf("换出页面: %d\n", i);
         }
       }
     }
   }
-
+  printf("换出页面: %d\n", selected);
   if (victim == 0)
     panic("select_victim_page: no valid victim found");
 
@@ -190,8 +192,9 @@ void usertrap(void)
       p->cur_page_in_mem++;
       page->status = 1; // 标记为在内存中
     }
-    extern uint ticks;
-    page->last_access_time = ticks; // 更新最后访问时间戳
+    acquire(&tickslock);
+    page->last_in_mem_time = ticks; // 更新进入内存时间戳
+    release(&tickslock);
   }
   else
   {
