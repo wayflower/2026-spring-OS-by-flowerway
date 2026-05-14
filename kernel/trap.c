@@ -61,7 +61,7 @@ struct VMA_page *select_victim_page(struct VMA *head)
       // 只有真正在内存中的页 (status == 1) 才能作为候选者
       if (v->pages[i].status == 1)
       {
-        victim = &v->pages[i]; // 更新当前最老的页面指针
+        victim = &v->pages[i];
         printf("换出页面: %d\n", i);
         break;
       }
