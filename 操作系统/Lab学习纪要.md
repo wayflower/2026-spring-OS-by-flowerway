@@ -6,3 +6,4 @@
 [lab4](Lab学习纪要/lab4.md)
 [lab5](Lab学习纪要/lab5.md)
 [lab6](Lab学习纪要/lab6.md)
+[lab7](Lab学习纪要/lab7.md)
