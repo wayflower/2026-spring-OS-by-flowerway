@@ -1,0 +1,14 @@
+--- kernel/trap.c
++++ kernel/trap.c
+@@ -118,9 +118,9 @@
+             n = v->addr + v->length - va_align;
+ 
+           elock(v->f->ep);
+-          int read_len = eread(v->f->ep, 0, (uint64)mem, offset, n);
++          eread(v->f->ep, 0, (uint64)mem, offset, n);
+           eunlock(v->f->ep);
+-          // printf("[usertrap] mmap read %d bytes from file, first char: '%c'\n", read_len, (read_len > 0) ? mem[0] : '!');
++        }
+         int prot = PTE_U | PTE_V;
+         int kprot = PTE_V;
+         if (v->prot & PROT_READ)
