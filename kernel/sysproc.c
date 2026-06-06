@@ -171,7 +171,7 @@ sys_sem_p(void)
   {
     return -1;
   }
-  return 0;
+  return sem_p(sem_id);
 }
 
 uint64
@@ -182,7 +182,7 @@ sys_sem_v(void)
   {
     return -1;
   }
-  return 0;
+  return sem_v(sem_id);
 }
 
 uint64
@@ -193,7 +193,7 @@ sys_sem_create(void)
   {
     return -1;
   }
-  return 0;
+  return sem_create(initial_value);
 }
 
 uint64
@@ -204,5 +204,5 @@ sys_sem_destroy(void)
   {
     return -1;
   }
-  return 0;
+  return sem_destroy(sem_id);
 }
