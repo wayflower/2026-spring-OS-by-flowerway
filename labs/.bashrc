@@ -117,5 +117,5 @@ if ! shopt -oq posix; then
 fi
 
 
-alias kernelin='cd os-part1 && docker run -ti --rm -v ./:/xv6 -w /xv6 --privileged=true docker.educg.net/cg/os-contest:2024p6 /bin/bash'
-alias inpart4='cd os-part4 && docker run -ti --rm -v ./:/xv6 -w /xv6 --privileged=true docker.educg.net/cg/os-contest:2024p6 /bin/bash'
+alias kernelin='cd os-part1237 && docker run -ti --rm -v ./:/xv6 -w /xv6 --privileged=true docker.educg.net/cg/os-contest:2024p6 /bin/bash'
+alias inpart4='cd os-part4568 && docker run -ti --rm -v ./:/xv6 -w /xv6 --privileged=true docker.educg.net/cg/os-contest:2024p6 /bin/bash'
